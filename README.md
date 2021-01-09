@@ -7,5 +7,5 @@ sudo python3 -m pip install scapy
 # Ejecucion:
 sudo python3 exec.py --help
 
-maqueta;         sudo python3 exec.py -r [rango de red] -g [puerta de enlaze]
+maqueta;         sudo python3 exec.py -r [rango de red] -g [puerta de enlaze]<br >
 ejemplo pratico; sudo python3 exec.py -r 192.168.1.1/24 -g 192.168.1.1
