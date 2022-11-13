@@ -4,6 +4,10 @@ este es un script que hize en python usando scapy, basicamente suplanta la direc
 # Instalacion:
 sudo python3 -m pip install scapy
 
+# Para windows habilitar colores ANSI por consola mediante:
+reg add HKCU\Console /v VirtualTerminalLevel /t REG_DWORD /d 1
+
+
 # Ejecucion:
 sudo python3 exec.py --help
 
